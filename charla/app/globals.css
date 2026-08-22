@@ -280,3 +280,40 @@ main {
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--muted-foreground);
 }
+
+
+
+/* ── Form inputs ── */
+.input {
+  width: 100%;
+  background-color: var(--surface-2);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 12px;
+  height: 36px;
+  font-size: 14px;
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+textarea.input {
+  height: auto;
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+
+/* ── Companion list wrapper ── */
+.companion-list {
+  width: 100%;
+}
