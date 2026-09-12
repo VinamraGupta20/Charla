@@ -1,11 +1,9 @@
+
 'use server';
 
 import { auth } from "@clerk/nextjs/server";
 import { createSupabaseClient } from "@/lib/supabase";
 
-// ============================================================
-// Shared Gemini API helper — every tool calls this
-// ============================================================
 export const callAI = async (prompt: string): Promise<string> => {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
