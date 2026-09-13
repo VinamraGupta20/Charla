@@ -4,6 +4,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { createSupabaseClient } from "@/lib/supabase";
 
+
 export const callAI = async (prompt: string): Promise<string> => {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
@@ -14,7 +15,9 @@ export const callAI = async (prompt: string): Promise<string> => {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 2000,
+          // Raised from 2000 → 8192 this week. At 2000, longer outputs
+          // (e.g. LinkedIn bios, resumes) were getting cut off mid-sentence.
+          maxOutputTokens: 8192,
         },
       }),
     }
@@ -62,8 +65,9 @@ const runTool = async (toolName: string, input: object, prompt: string): Promise
 };
 
 // ============================================================
-// 1. ATS Scanner
+// CAREER TOOLS (built Week 5)
 // ============================================================
+
 export const runATSScanner = async (input: { resume: string; job_description: string }) => {
   const prompt = `You are an ATS (Applicant Tracking System) analysis expert. Compare this resume against the job description and provide:
 
@@ -81,9 +85,6 @@ ${input.job_description}`;
   return runTool("ats-scanner", input, prompt);
 };
 
-// ============================================================
-// 2. Resume Builder
-// ============================================================
 export const runResumeBuilder = async (input: {
   full_name: string; email: string; phone: string; location: string;
   summary: string; experience: string; education: string; skills: string;
@@ -102,9 +103,6 @@ Skills: ${input.skills}`;
   return runTool("resume-builder", input, prompt);
 };
 
-// ============================================================
-// 3. Cover Letter Generator
-// ============================================================
 export const runCoverLetter = async (input: {
   resume: string; job_description: string; company_name: string; tone: string;
 }) => {
@@ -119,9 +117,6 @@ ${input.job_description}`;
   return runTool("cover-letter", input, prompt);
 };
 
-// ============================================================
-// 4. JD Decoder
-// ============================================================
 export const runJDDecoder = async (input: { job_description: string }) => {
   const prompt = `Analyze this job description and decode what the employer actually wants. Provide:
 
@@ -136,9 +131,6 @@ ${input.job_description}`;
   return runTool("jd-decoder", input, prompt);
 };
 
-// ============================================================
-// 5. LinkedIn Bio Writer
-// ============================================================
 export const runLinkedInBio = async (input: {
   current_role: string; target_role: string; experience: string; achievements: string;
 }) => {
@@ -150,9 +142,6 @@ Achievements: ${input.achievements}`;
   return runTool("linkedin-bio", input, prompt);
 };
 
-// ============================================================
-// 6. Salary Coach
-// ============================================================
 export const runSalaryCoach = async (input: {
   role: string; current_offer: string; target_salary: string;
   experience_years: string; location: string;
@@ -167,9 +156,6 @@ export const runSalaryCoach = async (input: {
   return runTool("salary-coach", input, prompt);
 };
 
-// ============================================================
-// 7. Cold Outreach Writer
-// ============================================================
 export const runColdOutreach = async (input: {
   your_name: string; your_role: string; target_name: string;
   target_company: string; purpose: string; context: string;
@@ -179,9 +165,6 @@ export const runColdOutreach = async (input: {
   return runTool("cold-outreach", input, prompt);
 };
 
-// ============================================================
-// 8. Skill Gap Analyzer
-// ============================================================
 export const runSkillGapAnalyzer = async (input: {
   current_skills: string; target_role: string; experience_years: string; timeline: string;
 }) => {
@@ -196,4 +179,118 @@ Current Skills & Experience:
 ${input.current_skills}`;
 
   return runTool("skill-gap", input, prompt);
+};
+
+// ============================================================
+// ACADEMIC TOOLS (new this week)
+// ============================================================
+
+export const runPaperExplainer = async (input: {
+  paper_text: string;
+  detail_level: "simple" | "intermediate" | "detailed";
+}) => {
+  const levelInstruction = {
+    simple: "Explain it in plain English, as if to someone with no background in the field.",
+    intermediate: "Explain it at a level suitable for an undergraduate student in the relevant field.",
+    detailed: "Explain it with full technical depth, suitable for a graduate student or researcher.",
+  }[input.detail_level];
+
+  const prompt = `You are explaining a research paper. ${levelInstruction}
+
+Provide:
+1. **Core Finding** — the main result/contribution in 2-3 sentences
+2. **Methodology** — how they got there
+3. **Why It Matters** — the real-world or academic significance
+4. **Key Terms Explained** — any jargon defined simply
+
+Paper text:
+${input.paper_text}`;
+
+  return runTool("paper-explainer", input, prompt);
+};
+
+export const runAssignmentPlanner = async (input: {
+  assignment_brief: string; subject: string; deadline: string; word_count: string;
+}) => {
+  const prompt = `Create a structured, day-by-day plan for completing this assignment. Subject: ${input.subject}. Deadline: ${input.deadline}. Target length: ${input.word_count || "not specified"}.
+
+Provide:
+1. **Task Breakdown** — day-by-day tasks from today until the deadline
+2. **Research Starting Points** — what to look up first
+3. **Milestones** — checkpoints to track progress
+4. **Tips** — specific to this subject/assignment type
+
+Assignment Brief:
+${input.assignment_brief}`;
+
+  return runTool("assignment-planner", input, prompt);
+};
+
+export const runPlagiarismRewriter = async (input: {
+  text: string; style: "academic" | "professional" | "casual"; subject: string;
+}) => {
+  const prompt = `Rewrite the following text in a ${input.style} style${input.subject ? ` for a ${input.subject} context` : ""}. Preserve the original meaning and all key information exactly, but rephrase the sentence structure and word choice significantly so it reads as original writing. Do not add new information or remove any facts.
+
+This is for legitimate writing improvement, not for misrepresenting someone else's work as one's own — treat it accordingly.
+
+Text to rewrite:
+${input.text}`;
+
+  return runTool("plagiarism-rewriter", input, prompt);
+};
+
+// ============================================================
+// PRODUCTIVITY TOOLS (new this week)
+// ============================================================
+
+export const runEmailDraft = async (input: {
+  recipient: string; purpose: string; key_points: string; tone: string;
+}) => {
+  const prompt = `Write a professional email to ${input.recipient}. Purpose: ${input.purpose}. Tone: ${input.tone}.
+
+Key points to include:
+${input.key_points}
+
+Write a clear subject line and a concise, well-structured email body.`;
+
+  return runTool("email-draft", input, prompt);
+};
+
+export const runCodeReviewer = async (input: { code: string; language: string }) => {
+  const prompt = `Review this ${input.language} code. Provide:
+
+1. **Bugs / Issues** — any bugs, edge cases missed, or logic errors
+2. **Code Quality** — readability, naming, structure feedback
+3. **Suggested Refactor** — improved version of the most important part, in a code block
+4. **Best Practices** — relevant ${input.language} conventions not being followed
+
+Code:
+\`\`\`${input.language}
+${input.code}
+\`\`\``;
+
+  return runTool("code-reviewer", input, prompt);
+};
+
+export const runMeetingSummarizer = async (input: { transcript: string }) => {
+  const prompt = `Summarize this meeting transcript. Provide:
+
+1. **Summary** — 3-4 sentence overview of what was discussed
+2. **Key Decisions** — decisions that were made
+3. **Action Items** — who needs to do what, with any mentioned deadlines
+4. **Open Questions** — anything left unresolved
+
+Transcript:
+${input.transcript}`;
+
+  return runTool("meeting-summarizer", input, prompt);
+};
+
+export const runDocWriter = async (input: { code_or_process: string; doc_type: string }) => {
+  const prompt = `Write clear ${input.doc_type} documentation for the following code or process. Use proper formatting with headings, and include usage examples where relevant.
+
+Content to document:
+${input.code_or_process}`;
+
+  return runTool("doc-writer", input, prompt);
 };
