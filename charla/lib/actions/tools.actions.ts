@@ -1,10 +1,13 @@
 
+
 'use server';
 
 import { auth } from "@clerk/nextjs/server";
 import { createSupabaseClient } from "@/lib/supabase";
 
-
+// ============================================================
+// Shared Gemini API helper — every tool calls this
+// ============================================================
 export const callAI = async (prompt: string): Promise<string> => {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
@@ -15,8 +18,6 @@ export const callAI = async (prompt: string): Promise<string> => {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.7,
-          // Raised from 2000 → 8192 this week. At 2000, longer outputs
-          // (e.g. LinkedIn bios, resumes) were getting cut off mid-sentence.
           maxOutputTokens: 8192,
         },
       }),
@@ -64,11 +65,68 @@ const runTool = async (toolName: string, input: object, prompt: string): Promise
   }
 };
 
+
+const FREE_MONTHLY_TOOL_LIMIT = 10;
+
+export const checkToolLimit = async (): Promise<{ allowed: boolean; used: number; limit: number }> => {
+  const { userId, has } = await auth();
+  if (!userId) return { allowed: false, used: 0, limit: FREE_MONTHLY_TOOL_LIMIT };
+
+  // Pro plan users have unlimited tool usage
+  if (has({ plan: "pro" })) {
+    return { allowed: true, used: 0, limit: Infinity };
+  }
+
+  const supabase = createSupabaseClient();
+
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const { count, error } = await supabase
+    .from("tool_usage")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .gte("created_at", startOfMonth.toISOString());
+
+  if (error) throw new Error(error.message);
+
+  const used = count ?? 0;
+
+  return {
+    allowed: used < FREE_MONTHLY_TOOL_LIMIT,
+    used,
+    limit: FREE_MONTHLY_TOOL_LIMIT,
+  };
+};
+
+
+export const getUserToolUsage = async (limit = 50): Promise<ToolUsage[]> => {
+  const { userId } = await auth();
+  if (!userId) return [];
+
+  const supabase = createSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("tool_usage")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+
+  return data as ToolUsage[];
+};
+
 // ============================================================
-// CAREER TOOLS (built Week 5)
+// CAREER TOOLS
 // ============================================================
 
 export const runATSScanner = async (input: { resume: string; job_description: string }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const prompt = `You are an ATS (Applicant Tracking System) analysis expert. Compare this resume against the job description and provide:
 
 1. **Match Score** (0-100%)
@@ -89,6 +147,9 @@ export const runResumeBuilder = async (input: {
   full_name: string; email: string; phone: string; location: string;
   summary: string; experience: string; education: string; skills: string;
 }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const prompt = `You are a professional resume writer. Build a clean, ATS-optimized resume using the details below. Format it clearly with sections: Contact Info, Summary, Experience, Education, Skills. Use strong action verbs and quantify achievements where possible.
 
 Name: ${input.full_name}
@@ -106,6 +167,9 @@ Skills: ${input.skills}`;
 export const runCoverLetter = async (input: {
   resume: string; job_description: string; company_name: string; tone: string;
 }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const prompt = `Write a tailored, human-sounding cover letter for ${input.company_name} in a ${input.tone} tone. Base it on the candidate's resume and the job description below. Keep it to 3-4 short paragraphs, avoid generic filler phrases, and highlight the most relevant experience.
 
 Resume / Background:
@@ -118,6 +182,9 @@ ${input.job_description}`;
 };
 
 export const runJDDecoder = async (input: { job_description: string }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const prompt = `Analyze this job description and decode what the employer actually wants. Provide:
 
 1. **Must-Have Requirements**
@@ -134,6 +201,9 @@ ${input.job_description}`;
 export const runLinkedInBio = async (input: {
   current_role: string; target_role: string; experience: string; achievements: string;
 }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const prompt = `Write a compelling LinkedIn headline and About section for someone transitioning from "${input.current_role}" to "${input.target_role}". Make the headline punchy (under 220 characters) and the About section 3 short paragraphs, written in first person, highlighting the experience and achievements below.
 
 Experience: ${input.experience}
@@ -146,6 +216,9 @@ export const runSalaryCoach = async (input: {
   role: string; current_offer: string; target_salary: string;
   experience_years: string; location: string;
 }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const prompt = `You are a salary negotiation coach. The candidate has been offered ${input.current_offer} for a ${input.role} role in ${input.location} with ${input.experience_years} of experience, and wants to negotiate toward ${input.target_salary}. Provide:
 
 1. **Negotiation Strategy** — overall approach
@@ -160,6 +233,9 @@ export const runColdOutreach = async (input: {
   your_name: string; your_role: string; target_name: string;
   target_company: string; purpose: string; context: string;
 }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const prompt = `Write a short, personalized cold outreach message from ${input.your_name} (${input.your_role}) to ${input.target_name} at ${input.target_company}. Purpose: ${input.purpose}. Context/hook: ${input.context}. Write both an email version and a shorter LinkedIn DM version. Keep it concise, warm, and not salesy.`;
 
   return runTool("cold-outreach", input, prompt);
@@ -168,6 +244,9 @@ export const runColdOutreach = async (input: {
 export const runSkillGapAnalyzer = async (input: {
   current_skills: string; target_role: string; experience_years: string; timeline: string;
 }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const prompt = `Compare the candidate's current skills against what's typically required for a "${input.target_role}" role. They have ${input.experience_years || "unspecified"} experience and a ${input.timeline || "flexible"} timeline. Provide:
 
 1. **Skills You Already Have** that transfer well
@@ -182,13 +261,16 @@ ${input.current_skills}`;
 };
 
 // ============================================================
-// ACADEMIC TOOLS (new this week)
+// ACADEMIC TOOLS
 // ============================================================
 
 export const runPaperExplainer = async (input: {
   paper_text: string;
   detail_level: "simple" | "intermediate" | "detailed";
 }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const levelInstruction = {
     simple: "Explain it in plain English, as if to someone with no background in the field.",
     intermediate: "Explain it at a level suitable for an undergraduate student in the relevant field.",
@@ -212,6 +294,9 @@ ${input.paper_text}`;
 export const runAssignmentPlanner = async (input: {
   assignment_brief: string; subject: string; deadline: string; word_count: string;
 }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const prompt = `Create a structured, day-by-day plan for completing this assignment. Subject: ${input.subject}. Deadline: ${input.deadline}. Target length: ${input.word_count || "not specified"}.
 
 Provide:
@@ -229,6 +314,9 @@ ${input.assignment_brief}`;
 export const runPlagiarismRewriter = async (input: {
   text: string; style: "academic" | "professional" | "casual"; subject: string;
 }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const prompt = `Rewrite the following text in a ${input.style} style${input.subject ? ` for a ${input.subject} context` : ""}. Preserve the original meaning and all key information exactly, but rephrase the sentence structure and word choice significantly so it reads as original writing. Do not add new information or remove any facts.
 
 This is for legitimate writing improvement, not for misrepresenting someone else's work as one's own — treat it accordingly.
@@ -240,12 +328,15 @@ ${input.text}`;
 };
 
 // ============================================================
-// PRODUCTIVITY TOOLS (new this week)
+// PRODUCTIVITY TOOLS
 // ============================================================
 
 export const runEmailDraft = async (input: {
   recipient: string; purpose: string; key_points: string; tone: string;
 }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const prompt = `Write a professional email to ${input.recipient}. Purpose: ${input.purpose}. Tone: ${input.tone}.
 
 Key points to include:
@@ -257,6 +348,9 @@ Write a clear subject line and a concise, well-structured email body.`;
 };
 
 export const runCodeReviewer = async (input: { code: string; language: string }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const prompt = `Review this ${input.language} code. Provide:
 
 1. **Bugs / Issues** — any bugs, edge cases missed, or logic errors
@@ -273,6 +367,9 @@ ${input.code}
 };
 
 export const runMeetingSummarizer = async (input: { transcript: string }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const prompt = `Summarize this meeting transcript. Provide:
 
 1. **Summary** — 3-4 sentence overview of what was discussed
@@ -287,6 +384,9 @@ ${input.transcript}`;
 };
 
 export const runDocWriter = async (input: { code_or_process: string; doc_type: string }) => {
+  const limitCheck = await checkToolLimit();
+  if (!limitCheck.allowed) return { success: false, error: "Monthly tool limit reached. Upgrade to Pro for unlimited access." };
+
   const prompt = `Write clear ${input.doc_type} documentation for the following code or process. Use proper formatting with headings, and include usage examples where relevant.
 
 Content to document:
