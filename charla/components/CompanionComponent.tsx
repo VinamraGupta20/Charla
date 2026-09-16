@@ -1,3 +1,7 @@
+// ============================================================
+// PASTE THIS FILE AT: components/CompanionComponent.tsx (REPLACE existing file — adds messagesRef, sessionSavedRef guard, and triggers generateSessionInsights on call end)
+// ============================================================
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -5,8 +9,8 @@ import { cn, configureAssistant, getSubjectColor } from "@/lib/utils";
 import { vapi } from "@/lib/vapi.sdk";
 import Image from "next/image";
 import Lottie, { LottieRefCurrentProps } from "lottie-react";
-import soundwaves from '../constants/soundwaves.json';
-import { addToSessionHistory } from "@/lib/actions/companion.actions";
+import soundwaves from '@/constants/soundwaves.json';
+import { addToSessionHistory, generateSessionInsights } from "@/lib/actions/companion.actions";
 
 enum CallStatus {
   INACTIVE = 'INACTIVE',
@@ -43,13 +47,30 @@ const CompanionComponent = ({
     const onCallEnd = async () => {
       setCallStatus(CallStatus.FINISHED);
 
+      // Guard against the "call-end" event firing more than once
       if (sessionSavedRef.current) return;
       sessionSavedRef.current = true;
 
+      // Use the ref — always up to date, unlike `messages` state in this closure
+      const finalTranscript = messagesRef.current;
+
       try {
-        await addToSessionHistory(companionId);
+        const session = await addToSessionHistory(companionId, finalTranscript);
+
+        // Generate insights in the background — don't block the UI
+        if (session?.id && finalTranscript.length > 0) {
+          generateSessionInsights(
+            session.id,
+            finalTranscript,
+            name,
+            subject,
+            topic
+          ).catch((err) => {
+            console.error("Failed to generate insights:", err);
+          });
+        }
       } catch (error) {
-        console.error("Failed to save session:", error);
+        console.error("Failed to save session transcript:", error);
       }
     };
 
@@ -58,7 +79,7 @@ const CompanionComponent = ({
         const newMessage = { role: message.role, content: message.transcript };
         setMessages((prev) => {
           const updated = [newMessage, ...prev];
-          messagesRef.current = updated;
+          messagesRef.current = updated; // keep ref in sync
           return updated;
         });
       }
@@ -94,6 +115,7 @@ const CompanionComponent = ({
   const handleCall = async () => {
     setCallStatus(CallStatus.CONNECTING);
 
+    // Reset transcript state and save guard for a fresh session
     setMessages([]);
     messagesRef.current = [];
     sessionSavedRef.current = false;
@@ -255,4 +277,4 @@ const CompanionComponent = ({
   );
 };
 
-export default CompanionComponent;
+export default CompanionComponent;  

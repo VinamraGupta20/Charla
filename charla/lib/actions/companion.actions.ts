@@ -1,3 +1,4 @@
+
 'use server';
 
 import { auth } from "@clerk/nextjs/server";
@@ -97,22 +98,26 @@ export const newCompanionPermissions = async () => {
     }
 }
 
-// ── Session history (basic — no transcript/insights yet) ──
+export const addToSessionHistory = async (
+  companionId: string,
+  transcript: SavedMessage[] = []
+) => {
+  const { userId } = await auth();
+  const supabase = createSupabaseClient();
 
-export const addToSessionHistory = async (companionId: string) => {
-    const { userId } = await auth();
-    const supabase = createSupabaseClient();
+  const { data, error } = await supabase
+    .from("session_history")
+    .insert({
+      companion_id: companionId,
+      user_id: userId,
+      transcript: transcript,
+    })
+    .select("id")
+    .single();
 
-    const { data, error } = await supabase.from('session_history')
-        .insert({
-            companion_id: companionId,
-            user_id: userId,
-        })
-
-    if (error) throw new Error(error.message);
-
-    return data;
-}
+  if (error) throw new Error(error.message);
+  return data; // { id: "..." }
+};
 
 export const getRecentSessions = async (limit = 10) => {
     const supabase = createSupabaseClient();
@@ -124,7 +129,16 @@ export const getRecentSessions = async (limit = 10) => {
 
     if (error) throw new Error(error.message);
 
-    return data.map(({ companions }) => companions);
+    const allCompanions = data.map(({ companions }) => companions);
+
+    const seen = new Set<string>();
+    const uniqueCompanions = allCompanions.filter((companion: any) => {
+        if (!companion || seen.has(companion.id)) return false;
+        seen.add(companion.id);
+        return true;
+    });
+
+    return uniqueCompanions;
 }
 
 export const getUserSessions = async (userId: string, limit = 10) => {
@@ -141,7 +155,29 @@ export const getUserSessions = async (userId: string, limit = 10) => {
     return data.map(({ companions }) => companions);
 }
 
-// ── Bookmarks ──
+
+export const getUserSessionsWithTranscripts = async (userId: string, limit = 20) => {
+  const supabase = createSupabaseClient();
+
+  const { data, error } = await supabase
+    .from('session_history')
+    .select(`
+      id,
+      created_at,
+      transcript,
+      insights,
+      companions:companion_id (
+        id, name, subject, topic, duration
+      )
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+  return data;
+};
+
 export const addBookmark = async (companionId: string, path: string) => {
     const { userId } = await auth();
     if (!userId) return;
@@ -186,4 +222,140 @@ export const getBookmarkedCompanions = async (userId: string) => {
     if (error) throw new Error(error.message);
 
     return data.map(({ companions }) => companions);
+};
+
+
+export const generateSessionInsights = async (
+  sessionId: string,
+  transcript: SavedMessage[],
+  companionName: string,
+  subject: string,
+  topic: string
+) => {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  if (!transcript || transcript.length === 0) {
+    return null;
+  }
+
+  const supabase = createSupabaseClient();
+
+  // Build a readable transcript string
+  const transcriptText = transcript
+    .map((m) => `${m.role === "user" ? "Student" : "Tutor"}: ${m.content}`)
+    .join("\n");
+
+  const prompt = `You are an expert educational analyst. Below is a transcript of a voice tutoring session between a student and an AI tutor named "${companionName}" on the subject "${subject}", topic "${topic}".
+
+Transcript:
+${transcriptText}
+
+Analyze this transcript and respond with ONLY a valid JSON object (no markdown, no code fences, no extra text) in exactly this format:
+
+{
+  "summary": "A 2-3 sentence summary of what was covered in this session.",
+  "struggled_with": ["concept 1 the student seemed unsure about", "concept 2", "concept 3"],
+  "quiz": [
+    { "question": "Question 1 text?", "options": ["Option A text", "Option B text", "Option C text", "Option D text"], "correct_answer": "Option A text", "explanation": "Why this is correct." },
+    { "question": "Question 2 text?", "options": ["Option A text", "Option B text", "Option C text", "Option D text"], "correct_answer": "Option B text", "explanation": "Why this is correct." },
+    { "question": "Question 3 text?", "options": ["Option A text", "Option B text", "Option C text", "Option D text"], "correct_answer": "Option C text", "explanation": "Why this is correct." },
+    { "question": "Question 4 text?", "options": ["Option A text", "Option B text", "Option C text", "Option D text"], "correct_answer": "Option D text", "explanation": "Why this is correct." },
+    { "question": "Question 5 text?", "options": ["Option A text", "Option B text", "Option C text", "Option D text"], "correct_answer": "Option A text", "explanation": "Why this is correct." }
+  ],
+  "next_topic": "A specific recommended next topic to study, related to ${subject}/${topic}, with a 1-sentence reason why."
+}
+
+If the transcript is too short or doesn't contain enough educational content to generate a meaningful quiz, still return the JSON structure but make the quiz general knowledge questions related to ${topic} and note this in the summary.
+
+CRITICAL RULES FOR THE QUIZ:
+- "options" MUST be a JSON array of exactly 4 separate strings, like ["var", "let", "const", "int"] — NOT a single combined string like "var, let, const, int".
+- Each option must be its own array element.
+- "correct_answer" must be a string that exactly matches one of the 4 elements in "options".
+- struggled_with should have 2-4 items.
+
+Respond with ONLY the JSON object. No markdown formatting, no \`\`\`json fences.`;
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 4096,
+          responseMimeType: "application/json",
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini API error: ${errText}`);
+  }
+
+  const data = await response.json();
+  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!rawText) throw new Error("No response from Gemini");
+
+  let insights;
+  try {
+    const cleaned = rawText.replace(/```json|```/g, "").trim();
+    insights = JSON.parse(cleaned);
+  } catch (e) {
+    throw new Error("Failed to parse insights JSON: " + rawText.slice(0, 200));
+  }
+
+  if (insights.quiz && Array.isArray(insights.quiz)) {
+    insights.quiz = insights.quiz.map((q: any) => {
+      let options = q.options;
+
+      if (typeof options === "string") {
+        options = options
+          .split(/,|\n/)
+          .map((opt: string) => opt.trim())
+          .filter((opt: string) => opt.length > 0);
+      }
+
+      if (!Array.isArray(options)) {
+        options = [];
+      }
+
+      options = options.map((opt: any) => String(opt).trim());
+
+      return { ...q, options };
+    });
+  }
+
+  // Save insights to the session_history row
+  const { error } = await supabase
+    .from("session_history")
+    .update({ insights })
+    .eq("id", sessionId)
+    .eq("user_id", userId);
+
+  if (error) throw new Error(error.message);
+
+  return insights;
+};
+
+export const getSessionInsights = async (sessionId: string) => {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const supabase = createSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("session_history")
+    .select("insights")
+    .eq("id", sessionId)
+    .eq("user_id", userId)
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data?.insights ?? null;
 };

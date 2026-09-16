@@ -1,4 +1,5 @@
 
+
 interface CreateCompanion {
   name: string;
   subject: string;
@@ -55,4 +56,36 @@ type ToolName =
   | "linkedin-bio"
   | "salary-coach"
   | "cold-outreach"
-  | "skill-gap";
+  | "skill-gap"
+  | "paper-explainer"
+  | "assignment-planner"
+  | "plagiarism-rewriter"
+  | "email-draft"
+  | "code-reviewer"
+  | "meeting-summarizer"
+  | "doc-writer";
+
+// ── Session Insights (NEW this week) ──
+interface QuizQuestion {
+  question: string;
+  options: string[];
+  correct_answer: string;
+  explanation: string;
+}
+
+interface SessionInsights {
+  summary: string;
+  struggled_with: string[];
+  quiz: QuizQuestion[];
+  next_topic: string;
+}
+
+interface SessionHistory {
+  id: string;
+  companion_id: string;
+  user_id: string;
+  transcript: SavedMessage[];
+  insights: SessionInsights | null;
+  created_at: string;
+  companions?: Companion;
+}
