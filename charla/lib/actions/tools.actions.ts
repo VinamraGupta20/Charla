@@ -1,13 +1,9 @@
 
-
 'use server';
 
 import { auth } from "@clerk/nextjs/server";
 import { createSupabaseClient } from "@/lib/supabase";
 
-// ============================================================
-// Shared Gemini API helper — every tool calls this
-// ============================================================
 export const callAI = async (prompt: string): Promise<string> => {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
@@ -37,9 +33,6 @@ export const callAI = async (prompt: string): Promise<string> => {
   return text.trim();
 };
 
-// ============================================================
-// Save every tool run to the database
-// ============================================================
 const saveToolUsage = async (toolName: string, input: object, output: string) => {
   const { userId } = await auth();
   if (!userId) return;
@@ -65,14 +58,12 @@ const runTool = async (toolName: string, input: object, prompt: string): Promise
   }
 };
 
-
 const FREE_MONTHLY_TOOL_LIMIT = 10;
 
 export const checkToolLimit = async (): Promise<{ allowed: boolean; used: number; limit: number }> => {
   const { userId, has } = await auth();
   if (!userId) return { allowed: false, used: 0, limit: FREE_MONTHLY_TOOL_LIMIT };
 
-  // Pro plan users have unlimited tool usage
   if (has({ plan: "pro" })) {
     return { allowed: true, used: 0, limit: Infinity };
   }
@@ -100,7 +91,6 @@ export const checkToolLimit = async (): Promise<{ allowed: boolean; used: number
   };
 };
 
-
 export const getUserToolUsage = async (limit = 50): Promise<ToolUsage[]> => {
   const { userId } = await auth();
   if (!userId) return [];
@@ -117,6 +107,22 @@ export const getUserToolUsage = async (limit = 50): Promise<ToolUsage[]> => {
   if (error) throw new Error(error.message);
 
   return data as ToolUsage[];
+};
+
+
+export const deleteToolUsage = async (id: string) => {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+
+  const supabase = createSupabaseClient();
+
+  const { error } = await supabase
+    .from("tool_usage")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) throw new Error(error.message);
 };
 
 // ============================================================
