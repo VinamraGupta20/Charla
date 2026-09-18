@@ -1,3 +1,4 @@
+
 "use client";
 import Link from "next/link";
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
@@ -11,7 +12,6 @@ const Navbar = () => {
   return (
     <>
       <nav className="navbar">
-        {/* Logo */}
         <Link href="/">
           <div className="flex items-center gap-2.5 cursor-pointer">
             <div
@@ -38,12 +38,10 @@ const Navbar = () => {
           </div>
         </Link>
 
-        {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-1">
           <NavItems />
         </div>
 
-        {/* Desktop right */}
         <div className="hidden md:flex items-center gap-3">
           <SignedOut>
             <SignInButton>
@@ -55,7 +53,6 @@ const Navbar = () => {
           </SignedIn>
         </div>
 
-        {/* Mobile right side */}
         <div className="flex md:hidden items-center gap-3">
           <SignedIn>
             <UserButton appearance={{ elements: { avatarBox: "w-7 h-7" } }} />
@@ -90,7 +87,6 @@ const Navbar = () => {
         </div>
       </nav>
 
-      {/* Mobile overlay */}
       {menuOpen && (
         <div className="mobile-overlay md:hidden">
           <button
@@ -106,6 +102,7 @@ const Navbar = () => {
             { label: "Home", href: "/" },
             { label: "Companions", href: "/companions" },
             { label: "Tools", href: "/tools" },
+            { label: "History", href: "/history" },
             { label: "My Journey", href: "/my-journey" },
           ].map(({ label, href }) => (
             <Link
