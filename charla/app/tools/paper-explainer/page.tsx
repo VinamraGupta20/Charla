@@ -49,10 +49,10 @@ const PaperExplainer = () => {
               <button key={value} onClick={() => setDetailLevel(value as typeof detailLevel)}
                 className="flex flex-col gap-1 p-3 rounded-lg text-left transition-all duration-150"
                 style={{
-                  backgroundColor: detailLevel === value ? "var(--primary-muted)" : "var(--surface-2)",
-                  border: `1px solid ${detailLevel === value ? "var(--primary)" : "var(--surface-3)"}`,
+                  backgroundColor: detailLevel === value ? "var(--accent-muted)" : "var(--surface-2)",
+                  border: `1px solid ${detailLevel === value ? "var(--accent)" : "var(--surface-3)"}`,
                 }}>
-                <span className="text-sm font-medium" style={{ color: detailLevel === value ? "var(--primary)" : "var(--foreground)" }}>
+                <span className="text-sm font-medium" style={{ color: detailLevel === value ? "var(--accent)" : "var(--foreground)" }}>
                   {label}
                 </span>
                 <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{desc}</span>
