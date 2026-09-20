@@ -51,8 +51,18 @@ const HistoryPage = () => {
           getUserToolUsage(50),
           user ? getUserSessionsWithTranscripts(user.id, 30) : [],
         ]);
-        setToolHistory(tools);
-        setSessionHistory(sessions);
+
+        // Dedupe by id — belt-and-suspenders fix in case either
+        // query ever returns the same row twice
+        const uniqueTools = Array.from(
+          new Map(tools.map((t: any) => [t.id, t])).values()
+        );
+        const uniqueSessions = Array.from(
+          new Map(sessions.map((s: any) => [s.id, s])).values()
+        );
+
+        setToolHistory(uniqueTools as ToolUsage[]);
+        setSessionHistory(uniqueSessions);
       } catch (e) {
         console.error(e);
       } finally {

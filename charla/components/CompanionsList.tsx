@@ -1,3 +1,4 @@
+  
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -38,6 +39,12 @@ const CompanionsList = ({ title, companions, classNames }: CompanionsListProps) 
     );
   }
 
+  // Dedupe by id — defensive fix in case the caller passes a list
+  // (e.g. from getRecentSessions) containing the same companion twice
+  const uniqueCompanions = Array.from(
+    new Map(companions.map((c) => [c.id, c])).values()
+  );
+
   return (
     <article className={cn("companion-list", classNames)}>
       <h2
@@ -49,36 +56,63 @@ const CompanionsList = ({ title, companions, classNames }: CompanionsListProps) 
       <Table>
         <TableHeader>
           <TableRow style={{ borderColor: "var(--border)" }}>
-            <TableHead className="text-sm font-medium w-2/3" style={{ color: "var(--muted-foreground)" }}>
+            <TableHead
+              className="text-sm font-medium w-2/3"
+              style={{ color: "var(--muted-foreground)" }}
+            >
               Lesson
             </TableHead>
-            <TableHead className="text-sm font-medium" style={{ color: "var(--muted-foreground)" }}>
+            <TableHead
+              className="text-sm font-medium"
+              style={{ color: "var(--muted-foreground)" }}
+            >
               Subject
             </TableHead>
-            <TableHead className="text-sm font-medium text-right" style={{ color: "var(--muted-foreground)" }}>
+            <TableHead
+              className="text-sm font-medium text-right"
+              style={{ color: "var(--muted-foreground)" }}
+            >
               Duration
             </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {companions.map(({ id, subject, name, topic, duration }) => {
+          {uniqueCompanions.map(({ id, subject, name, topic, duration }) => {
             const color = getSubjectColor(subject);
             return (
-              <TableRow key={id} style={{ borderColor: "var(--border)" }} className="transition-colors duration-150">
+              <TableRow
+                key={id}
+                style={{ borderColor: "var(--border)" }}
+                className="transition-colors duration-150"
+              >
                 <TableCell>
                   <Link href={`/companions/${id}`}>
                     <div className="flex items-center gap-3">
                       <div
                         className="size-[48px] flex items-center justify-center rounded-lg max-md:hidden flex-shrink-0"
-                        style={{ backgroundColor: "var(--surface-2)", borderLeft: `3px solid ${color}` }}
+                        style={{
+                          backgroundColor: "var(--surface-2)",
+                          borderLeft: `3px solid ${color}`,
+                        }}
                       >
-                        <Image src={`/icons/${subject}.svg`} alt={subject} width={24} height={24} />
+                        <Image
+                          src={`/icons/${subject}.svg`}
+                          alt={subject}
+                          width={24}
+                          height={24}
+                        />
                       </div>
                       <div className="flex flex-col gap-0.5">
-                        <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>
+                        <p
+                          className="font-semibold text-sm"
+                          style={{ color: "var(--foreground)" }}
+                        >
                           {name}
                         </p>
-                        <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                        <p
+                          className="text-xs"
+                          style={{ color: "var(--muted-foreground)" }}
+                        >
                           {topic}
                         </p>
                       </div>
@@ -89,9 +123,16 @@ const CompanionsList = ({ title, companions, classNames }: CompanionsListProps) 
                 <TableCell>
                   <span
                     className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md capitalize font-medium max-md:hidden"
-                    style={{ backgroundColor: "var(--surface-2)", color: color, border: "1px solid var(--border)" }}
+                    style={{
+                      backgroundColor: "var(--surface-2)",
+                      color: color,
+                      border: "1px solid var(--border)",
+                    }}
                   >
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                    <span
+                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: color }}
+                    />
                     {subject}
                   </span>
                   <div
@@ -104,7 +145,10 @@ const CompanionsList = ({ title, companions, classNames }: CompanionsListProps) 
 
                 <TableCell>
                   <div className="flex items-center gap-1.5 w-full justify-end">
-                    <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                    <p
+                      className="text-sm font-medium"
+                      style={{ color: "var(--foreground)" }}
+                    >
                       {duration}
                       <span className="max-md:hidden" style={{ color: "var(--muted-foreground)" }}>
                         {" "}mins
