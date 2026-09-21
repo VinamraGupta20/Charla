@@ -1,6 +1,8 @@
+
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, DM_Sans } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 
@@ -17,6 +19,11 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: "Charla — Your AI companion from campus to career",
   description: "AI-powered voice companions and career tools for students and early professionals.",
+  icons: {
+    icon: "/logo.svg",
+    shortcut: "/logo.svg",
+    apple: "/logo.svg",
+  },
 };
 
 export default function RootLayout({
@@ -37,10 +44,17 @@ export default function RootLayout({
         },
       }}
     >
-      <html lang="en" className="dark" suppressHydrationWarning>
+      <html lang="en" suppressHydrationWarning>
         <body className={`${bricolageGrotesque.variable} ${dmSans.variable} antialiased`}>
-          <Navbar />
-          {children}
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableSystem
+            disableTransitionOnChange={false}
+          >
+            <Navbar />
+            {children}
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>
