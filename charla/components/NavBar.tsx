@@ -1,10 +1,12 @@
 
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { useState } from "react";
 import { X } from "lucide-react";
 import NavItems from "@/components/NavItems";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -14,17 +16,14 @@ const Navbar = () => {
       <nav className="navbar">
         <Link href="/">
           <div className="flex items-center gap-2.5 cursor-pointer">
-            <div
-              className="w-8 h-8 flex items-center justify-center rounded-md text-xs font-bold"
-              style={{
-                backgroundColor: "var(--accent)",
-                color: "#1a1917",
-                fontFamily: "var(--font-bricolage)",
-                letterSpacing: "-0.03em",
-              }}
-            >
-              CH
-            </div>
+            <Image
+              src="/logo.svg"
+              alt="Charla logo"
+              width={32}
+              height={32}
+              className="w-8 h-8"
+              priority
+            />
             <span
               className="font-bold text-lg max-sm:hidden"
               style={{
@@ -43,6 +42,7 @@ const Navbar = () => {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
+          <ThemeToggle />
           <SignedOut>
             <SignInButton>
               <button className="btn-signin">Sign In</button>
@@ -54,6 +54,7 @@ const Navbar = () => {
         </div>
 
         <div className="flex md:hidden items-center gap-3">
+          <ThemeToggle />
           <SignedIn>
             <UserButton appearance={{ elements: { avatarBox: "w-7 h-7" } }} />
           </SignedIn>
