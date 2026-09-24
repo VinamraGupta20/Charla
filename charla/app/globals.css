@@ -17,7 +17,7 @@
   --accent-muted: rgba(196, 152, 67, 0.12);
   --destructive: #dc2626;
 }
-
+ 
 .dark {
   --background: #0e0e10;
   --foreground: #f0eff0;
@@ -30,6 +30,14 @@
   --accent-hover: #c49843;
   --accent-muted: rgba(212, 168, 83, 0.12);
   --destructive: #ef4444;
+}
+
+* {
+  transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+}
+ 
+html {
+  transition: background-color 200ms ease, color 200ms ease;
 }
 {
   transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
